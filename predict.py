@@ -5,32 +5,36 @@ from utils.transforms import get_test_transform
 import config
 import os
 
+
 def predict_image(image_path, model_path):
     # 加载模型
     model = AlexNet(num_classes=config.NUM_CLASSES)
-    model.load_state_dict(torch.load(model_path))
-    model = model.to(config.DEVICE)
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.to(device)
     model.eval()
-    
+
     # 加载和预处理图片
-    image = Image.open(image_path).convert('RGB')
+    image = Image.open(image_path).convert("RGB")
     transform = get_test_transform()
-    image = transform(image).unsqueeze(0).to(config.DEVICE)
-    
+    image = transform(image).unsqueeze(0).to(device)
+
     # 预测
     with torch.no_grad():
         outputs = model(image)
         _, predicted = torch.max(outputs.data, 1)
-        
-    return 'cat' if predicted.item() == 0 else 'dog'
 
-if __name__ == '__main__':
-    import pandas as pd 
+    return "cat" if predicted.item() == 0 else "dog"
+
+
+if __name__ == "__main__":
+    import pandas as pd
     from concurrent.futures import ThreadPoolExecutor
+
     count = 0
     # Create DataFrame
-    file = pd.DataFrame(columns=['id', 'label'])
-    dir = 'data/test'
+    file = pd.DataFrame(columns=["id", "label"])
+    dir = "data/test"
     file_paths = []
 
     # Collect image paths
@@ -40,7 +44,8 @@ if __name__ == '__main__':
 
     # Process images and save results concurrently
     def process_image(file_path):
-        result = predict_image(file_path, 'saved_models/model_epoch_50.pth')
+        result = predict_image(file_path, "saved_models/model_epoch_100.pth")
+        print(f"{file_path} is {result}")
         return file_path, result
 
     with ThreadPoolExecutor(max_workers=10) as executor:  # Set the number of concurrent processes
@@ -48,7 +53,7 @@ if __name__ == '__main__':
 
     # Append rows to DataFrame
     for file_path, result in results:
-        file = pd.concat([file, pd.DataFrame([[file_path, result]], columns=['id', 'label'])], ignore_index=True)
+        file = pd.concat([file, pd.DataFrame([[file_path, result]], columns=["id", "label"])], ignore_index=True)
 
     # Save the result to CSV
-    file.to_csv('result.csv', index=False)
+    file.to_csv("result.csv", index=False)
